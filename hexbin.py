@@ -210,59 +210,51 @@ class Colorscale():
         return self.colormap(a)[:-1]
 
 
+class Writer():
 
-def save_svg(filename, hexagons, hexagon_fills, points, dimensions=None, image=None):
+    def __init__(self, filename, dimensions=None, image=None):
 
-    if not filename.endswith(".svg"):
-        filename += ".svg"
+        if not filename.endswith(".svg"):
+            filename += ".svg"
 
-    dwg = None
+        self.filename = filename
+        self.dwg = None
 
-    if dimensions is not None:
-        size = (str(dimensions[0]) + "px", str(dimensions[1]) + "px")
-        dwg = svgwrite.Drawing(filename, profile="tiny", size=size)
-    else:
-        dwg = svgwrite.Drawing(filename, profile="tiny")
+        if dimensions is not None:
+            size = (str(dimensions[0]) + "px", str(dimensions[1]) + "px")
+            self.dwg = svgwrite.Drawing(filename, profile="tiny", size=size)
+        else:
+            self.dwg = svgwrite.Drawing(filename, profile="tiny")
 
-    if image is not None:
-        dwg.add(svgwrite.image.Image(image, insert=(0, 0)))
+        if image is not None:
+            self.dwg.add(svgwrite.image.Image(image, insert=(0, 0)))
 
-    dwg.add_stylesheet(CSS_FILENAME, title="main_stylesheet")
-
-    for i in range(0, len(hexagons)):
-        # dwg.add(dwg.path(self._get_hexagon_path(self.radius), transform="translate({},{})".format(item[0], item[1]), fill="rgb(254,0,0)"))
-        dwg.add(dwg.path(
-            Hexbin.create_svg_path(hexagons[i], absolute=True), 
-            fill=svgwrite.rgb(hexagon_fills[i][0]*254, hexagon_fills[i][1]*254, hexagon_fills[i][2]*254))
-        ) 
-
-        # , 
-        #     fill=svgwrite.rgb(0, 0, 0),
-        #     stroke=svgwrite.rgb(0, 0, 0)
-        # )
-
-         # fill=svgwrite.rgb(*self._interpolate_color(item[4], self._get_minmax(), ((10, 10, 10), (200, 200, 200)))), 
-
-    for item in points:
-        dwg.add(dwg.circle(center=item, r=3, fill=svgwrite.rgb(254, 0, 0)))
-
-    dwg.save()
+        self.dwg.add_stylesheet(CSS_FILENAME, title="main_stylesheet")
 
 
-# def projectCoordinate(p):
-#     lat = p[0]
-#     lon = p[1]
+    def add_hexagons(self, hexagons, fills):
+        for i in range(0, len(hexagons)):
+            # dwg.add(dwg.path(self._get_hexagon_path(self.radius), transform="translate({},{})".format(item[0], item[1]), fill="rgb(254,0,0)"))
+            self.dwg.add(self.dwg.path(
+                Hexbin.create_svg_path(hexagons[i], absolute=True), 
+                fill=svgwrite.rgb(fills[i][0]*254, fills[i][1]*254, fills[i][2]*254))
+            ) 
 
-#     mapWidth    = 2058 * 10000;
-#     mapHeight   = 1746 * 10000;
+            # , 
+            #     fill=svgwrite.rgb(0, 0, 0),
+            #     stroke=svgwrite.rgb(0, 0, 0)
+            # )
 
-#     x       = (lon+180) * (mapWidth/360)
-#     latRad  = lat * pi / 180
+             # fill=svgwrite.rgb(*self._interpolate_color(item[4], self._get_minmax(), ((10, 10, 10), (200, 200, 200)))), 
 
-#     mercN   = log(tan((pi/4) + (latRad/2)));
-#     y       = (mapHeight/2) - (mapWidth*mercN/(2*pi))
+    def add_circles(self, points, radius=3):
+        for item in points:
+            self.dwg.add(self.dwg.circle(center=item, r=radius, fill=svgwrite.rgb(254, 0, 0)))
 
-#     return [x, y]
+
+    def save(self):
+        self.dwg.save()
+
 
 
 def calculateHomographyMatrix(points_src, points_dst):
@@ -344,7 +336,7 @@ if __name__ == "__main__":
 
             example_data.append([minx + (maxx-minx)/2, maxy])
 
-    # example_data = example_data[0:1000]
+    # example_data = example_data[0:10000]
 
     src = [
         [1124, 1416],
@@ -352,7 +344,8 @@ if __name__ == "__main__":
         [3785, 1267],
         [3416, 928],
         [2856, 1303],
-        [2452, 916]
+        [2452, 916],
+        [3672, 2476]
     ]
     dst = [
         [50.971296, 11.037630],
@@ -360,7 +353,8 @@ if __name__ == "__main__":
         [50.971456, 11.037915],
         [50.971705, 11.037711],
         [50.971402, 11.037796],
-        [50.971636, 11.037486]
+        [50.971636, 11.037486],
+        [50.971214, 11.038025]
     ]
 
     h, _ = calculateHomographyMatrix(src, dst)
@@ -383,6 +377,9 @@ if __name__ == "__main__":
     _, h_inverse = cv2.invert(h)
     warped_hexagons = transformHexagons(latlon_hexagons, h_inverse)
 
-    save_svg("text.svg", warped_hexagons, hexagon_fills, hexbin.data(), image="bg.jpg", dimensions=(5952, 3348))
+    writer = Writer("text.svg", image="bg.jpg", dimensions=(5952, 3348))
+    writer.add_hexagons(warped_hexagons, hexagon_fills)
+    writer.add_circles(example_data, radius=1)
+    writer.save()
 
 
