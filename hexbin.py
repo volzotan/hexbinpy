@@ -1,35 +1,46 @@
-from math import sqrt, pi, sin, cos
+from math import sqrt, pi, sin, cos, log, tan
 from copy import deepcopy
 import svgwrite
 
+import numpy as np
 import cv2
 
 CSS_FILENAME = "style.css"
 
 class Hexbin():
 
-    radius = 1
+    radius = 0.00001
 
-    def __init__(self, data, radius):
+    def __init__(self, radius_in_metres):
 
         self.raw = []
         self.bins = {}
 
-        self.radius = radius
+        self.radius = self._m_to_latlon(radius_in_metres)
 
         self.w = sqrt(3) * self.radius
         self.h = 2 * self.radius
         self.dx = self.w
         self.dy = 0.75 * self.h 
 
-        self._add_data(data)
+
+    def x(self, datapoint):
+        return datapoint[0]
 
 
-    def _add_data(self, data):
+    def y(self, datapoint):
+        return datapoint[1]
+
+
+    def _m_to_latlon(self, m):
+        return (m / 1.1) * 0.00001
+
+
+    def add_data(self, data):
         for i in range(0, len(data)):
 
-            px = data[i][0]
-            py = data[i][1]
+            px = self.x(data[i])
+            py = self.y(data[i])
 
             py = py / self.dy
             pj = round(py)
@@ -55,7 +66,7 @@ class Hexbin():
                 biny = pj * self.dy
                 self.bins[bin_id] = [binx, biny, pi, pj, 1]
 
-            self.raw.append(data[i])
+            self.raw.append([self.x(data[i]), self.y(data[i])])
 
 
     def _draw_hexagon(self, r):
@@ -106,8 +117,25 @@ class Hexbin():
         return (minval, maxval)
 
 
-    def _interpolate_color(self, value, domain, range):
-        return (0, 0, 0)
+    def _interpolate_color(self, value, d, r):
+        # if type(value) in [list, tuple]:
+        #     print("list")
+        # else:
+        #     print("no list")
+
+        a = (value - d[0])
+
+        if (a <= 0):
+            return (r[0], r[0], r[0])
+
+        a = (d[1] - d[0]) / a
+
+        if (a >= 1):
+            return (r[1], r[1], r[1])
+
+        b = r[0] + (r[1] - r[0]) * a
+
+        return (b, b, b)
 
 
     def hexagons(self, translation=None):
@@ -172,11 +200,7 @@ class Hexbin():
         return self.raw
 
 
-def transform_points():
-    pass
-
-
-def save_svg(filename, hexagons, points, dimensions=None, image=None):
+def save_svg(filename, hexagons, hexagon_fills, points, dimensions=None, image=None):
 
     if not filename.endswith(".svg"):
         filename += ".svg"
@@ -194,11 +218,9 @@ def save_svg(filename, hexagons, points, dimensions=None, image=None):
 
     dwg.add_stylesheet(CSS_FILENAME, title="main_stylesheet")
 
-    for item in hexagons:
+    for i in range(0, len(hexagons)):
         # dwg.add(dwg.path(self._get_hexagon_path(self.radius), transform="translate({},{})".format(item[0], item[1]), fill="rgb(254,0,0)"))
-        dwg.add(
-            dwg.path(Hexbin.create_svg_path(item, absolute=True))
-        ) 
+        dwg.add(dwg.path(Hexbin.create_svg_path(hexagons[i], absolute=True), fill=svgwrite.rgb(*hexagon_fills[i]))) 
 
         # , 
         #     fill=svgwrite.rgb(0, 0, 0),
@@ -207,10 +229,61 @@ def save_svg(filename, hexagons, points, dimensions=None, image=None):
 
          # fill=svgwrite.rgb(*self._interpolate_color(item[4], self._get_minmax(), ((10, 10, 10), (200, 200, 200)))), 
 
-    # for item in points:
-    #     dwg.add(dwg.circle(center=item, r=0.5, fill=svgwrite.rgb(254, 0, 0)))
+    for item in points:
+        dwg.add(dwg.circle(center=item, r=3, fill=svgwrite.rgb(254, 0, 0)))
 
     dwg.save()
+
+
+# def projectCoordinate(p):
+#     lat = p[0]
+#     lon = p[1]
+
+#     mapWidth    = 2058 * 10000;
+#     mapHeight   = 1746 * 10000;
+
+#     x       = (lon+180) * (mapWidth/360)
+#     latRad  = lat * pi / 180
+
+#     mercN   = log(tan((pi/4) + (latRad/2)));
+#     y       = (mapHeight/2) - (mapWidth*mercN/(2*pi))
+
+#     return [x, y]
+
+
+def calculateHomographyMatrix(points_src, points_dst):
+
+    pts_src = np.array(points_src, dtype=np.float)
+    pts_dst = np.array(points_dst, dtype=np.float)
+
+    h, status = cv2.findHomography(pts_src, pts_dst)
+
+    return h, status
+
+
+def transformPoints(points, h):
+    warped = []
+
+    for point in points:
+        values = np.array([[point]], dtype=np.float64)
+        pointsOut = cv2.perspectiveTransform(values, h)
+        warped.append(pointsOut.tolist()[0][0])
+
+    return warped
+
+
+def transformHexagons(hexagons, h):
+    warped_hexagons = []
+
+    for hexagon in hexagons:
+        warped_hexagon = []
+        for point in hexagon:
+            values = np.array([[point]], dtype=np.float64)
+            pointsOut = cv2.perspectiveTransform(values, h)
+            warped_hexagon.append(pointsOut.tolist()[0][0])
+        warped_hexagons.append(warped_hexagon)
+
+    return warped_hexagons
 
 
 if __name__ == "__main__":
@@ -257,17 +330,45 @@ if __name__ == "__main__":
 
             example_data.append([minx + (maxx-minx)/2, maxy])
 
-    print(len(example_data))
 
-    example_data = example_data[0:100]
+    example_data = example_data[0:1000]
 
-    hexbin = Hexbin(example_data, 20)
-    # hexbin.homography()
-    save_svg("text.svg", hexbin.hexagon_points(), hexbin.data(), image="bg.jpg", dimensions=(5952, 3348))
+    src = [
+        [1124, 1416],
+        [1773, 2470],
+        [3785, 1267],
+        [3416, 928],
+        [2856, 1303],
+        [2452, 916]
+    ]
+    dst = [
+        [50.971296, 11.037630],
+        [50.971173, 11.037914],
+        [50.971456, 11.037915],
+        [50.971705, 11.037711],
+        [50.971402, 11.037796],
+        [50.971636, 11.037486]
+    ]
 
-    print(hexbin._get_minmax())
+    h, _ = calculateHomographyMatrix(src, dst)
+    latlon_coordinates = transformPoints(example_data, h)
 
-    # for key, item in hexbin.hexagons().items():
-    #     print(item)
+    hexbin = Hexbin(0.5)
+    hexbin.add_data(latlon_coordinates)
+    latlon_hexagons = hexbin.hexagon_points()
+    
+    hexagon_fills = [x[1] for x in hexbin.hexagons().items()]
+    domain = hexbin._get_minmax()
+    for i in range(len(hexagon_fills)):
+        hexagon_fills[i] = hexbin._interpolate_color(hexagon_fills[i][4], domain, (0, 200))
+
+        # print(hexagon_fills[i][4])
+
+        # hexagon_fills[i] = 1
+
+    _, h_inverse = cv2.invert(h)
+    warped_hexagons = transformHexagons(latlon_hexagons, h_inverse)
+
+    save_svg("text.svg", warped_hexagons, hexagon_fills, hexbin.data(), image="bg.jpg", dimensions=(5952, 3348))
 
 
