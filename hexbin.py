@@ -2,6 +2,8 @@ from math import sqrt, pi, sin, cos, log, tan
 from copy import deepcopy
 import svgwrite
 
+import colormaps
+
 import numpy as np
 import cv2
 
@@ -117,27 +119,6 @@ class Hexbin():
         return (minval, maxval)
 
 
-    def _interpolate_color(self, value, d, r):
-        # if type(value) in [list, tuple]:
-        #     print("list")
-        # else:
-        #     print("no list")
-
-        a = (value - d[0])
-
-        if (a <= 0):
-            return (r[0], r[0], r[0])
-
-        a = (d[1] - d[0]) / a
-
-        if (a >= 1):
-            return (r[1], r[1], r[1])
-
-        b = r[0] + (r[1] - r[0]) * a
-
-        return (b, b, b)
-
-
     def hexagons(self, translation=None):
         return self.bins
 
@@ -200,6 +181,36 @@ class Hexbin():
         return self.raw
 
 
+class Colorscale():
+
+    def __init__(self, d):
+        self.d = d
+
+        from matplotlib.colors import ListedColormap
+        self.colormap = ListedColormap(colormaps._viridis_data, name='viridis')
+        # print(colormap(0.5)[:-1])
+
+        # if type(value) in [list, tuple]:
+        #     print("list")
+        # else:
+        #     print("no list")
+
+
+    def get_color(self, value):
+        a = value - self.d[0]
+
+        if (a <= 0):
+            return self.colormap(0)[:-1]
+
+        a = a / (self.d[1] - self.d[0])
+
+        if (a >= 1):
+            return self.colormap(1.0)[:-1]
+
+        return self.colormap(a)[:-1]
+
+
+
 def save_svg(filename, hexagons, hexagon_fills, points, dimensions=None, image=None):
 
     if not filename.endswith(".svg"):
@@ -220,7 +231,10 @@ def save_svg(filename, hexagons, hexagon_fills, points, dimensions=None, image=N
 
     for i in range(0, len(hexagons)):
         # dwg.add(dwg.path(self._get_hexagon_path(self.radius), transform="translate({},{})".format(item[0], item[1]), fill="rgb(254,0,0)"))
-        dwg.add(dwg.path(Hexbin.create_svg_path(hexagons[i], absolute=True), fill=svgwrite.rgb(*hexagon_fills[i]))) 
+        dwg.add(dwg.path(
+            Hexbin.create_svg_path(hexagons[i], absolute=True), 
+            fill=svgwrite.rgb(hexagon_fills[i][0]*254, hexagon_fills[i][1]*254, hexagon_fills[i][2]*254))
+        ) 
 
         # , 
         #     fill=svgwrite.rgb(0, 0, 0),
@@ -330,8 +344,7 @@ if __name__ == "__main__":
 
             example_data.append([minx + (maxx-minx)/2, maxy])
 
-
-    example_data = example_data[0:1000]
+    # example_data = example_data[0:1000]
 
     src = [
         [1124, 1416],
@@ -358,11 +371,12 @@ if __name__ == "__main__":
     latlon_hexagons = hexbin.hexagon_points()
     
     hexagon_fills = [x[1] for x in hexbin.hexagons().items()]
-    domain = hexbin._get_minmax()
+    scale = Colorscale([0, 40])
+    # domain = hexbin._get_minmax()
     for i in range(len(hexagon_fills)):
-        hexagon_fills[i] = hexbin._interpolate_color(hexagon_fills[i][4], domain, (0, 200))
-
-        # print(hexagon_fills[i][4])
+        hexagon_fills[i] = scale.get_color(hexagon_fills[i][4])
+        # print(hexagon_fills[i])
+        # exit()
 
         # hexagon_fills[i] = 1
 
