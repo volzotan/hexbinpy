@@ -1,5 +1,6 @@
 from math import sqrt, pi, sin, cos, log, tan
 from copy import deepcopy
+import time
 import svgwrite
 
 import colormaps
@@ -247,14 +248,72 @@ class Writer():
 
              # fill=svgwrite.rgb(*self._interpolate_color(item[4], self._get_minmax(), ((10, 10, 10), (200, 200, 200)))), 
 
-    def add_circles(self, points, radius=3):
+    def add_circles(self, points, radius=3, fill=svgwrite.rgb(254, 0, 0)):
         for item in points:
-            self.dwg.add(self.dwg.circle(center=item, r=radius, fill=svgwrite.rgb(254, 0, 0)))
+            self.dwg.add(self.dwg.circle(center=item, r=radius, fill=fill))
 
 
     def save(self):
         self.dwg.save()
 
+
+class WriterSimple():
+
+    def __init__(self, filename, dimensions=None, image=None):
+
+        if not filename.endswith(".svg"):
+            filename += ".svg"
+
+        self.filename = filename
+        self.dimensions = dimensions
+        self.image = image
+
+        self.hexagons = []
+        self.circles = []
+
+    def add_hexagons(self, hexagons, fills):
+        for i in range(0, len(hexagons)):
+            self.hexagons.append([
+                Hexbin.create_svg_path(hexagons[i], absolute=True), 
+                [fills[i][0]*254, fills[i][1]*254, fills[i][2]*254]
+            ]) 
+
+    def add_circles(self, circles, radius=3, fill=[254, 0, 0]):
+        for item in circles:
+            self.circles.append([item, radius, fill])
+        #     self.dwg.add(self.dwg.circle(center=item, r=radius, fill=fill))
+        pass
+
+
+    def save(self):
+        with open(self.filename, "w") as out:
+
+            out.write("<?xml version=\"1.0\" encoding=\"utf-8\" ?>")
+            out.write("<?xml-stylesheet href=\"style.css\" type=\"text/css\" title=\"main_stylesheet\" alternate=\"no\" media=\"screen\" ?>")
+            if self.dimensions is not None:
+                out.write("<svg baseProfile=\"tiny\" version=\"1.2\" width=\"{}px\" height=\"{}px\" ".format(self.dimensions[0], self.dimensions[1]))
+            else:
+                out.write("<svg baseProfile=\"tiny\" version=\"1.2\" ")
+            out.write("xmlns=\"http://www.w3.org/2000/svg\" xmlns:ev=\"http://www.w3.org/2001/xml-events\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" >")
+            out.write("<defs />")
+            if self.image is not None:
+                out.write("<image x=\"0\" y=\"0\" xlink:href=\"{}\" />".format(self.image))
+
+            for h in self.hexagons:
+                out.write("<path d=\"")
+                for cmd in h[0]:
+                    out.write(cmd[0])
+                    if (len(cmd) > 1):
+                        out.write(str(cmd[1]))
+                        out.write(" ")
+                        out.write(str(cmd[2]))
+                        out.write(" ")
+                out.write("\" fill=\"rgb({},{},{})\" />".format(int(h[1][0]), int(h[1][1]), int(h[1][2])))
+ 
+            for c in self.circles:
+                out.write("<circle cx=\"{}\" cy=\"{}\" fill=\"rgb({},{},{})\" r=\"{}\" />".format(c[0][0], c[0][1], c[2][0], c[2][1], c[2][2], c[1]))
+
+            out.write("</svg>")
 
 
 def calculateHomographyMatrix(points_src, points_dst):
@@ -322,6 +381,8 @@ if __name__ == "__main__":
 
     import csv
 
+    time_start = time.time()
+
     example_data = []
     with open("boxes_bahnhof2.txt") as csv_file:
         csv_reader = csv.reader(csv_file, delimiter='|')
@@ -345,7 +406,7 @@ if __name__ == "__main__":
         [3416, 928],
         [2856, 1303],
         [2452, 916],
-        [3672, 2476]
+        [3870, 2476]
     ]
     dst = [
         [50.971296, 11.037630],
@@ -377,9 +438,14 @@ if __name__ == "__main__":
     _, h_inverse = cv2.invert(h)
     warped_hexagons = transformHexagons(latlon_hexagons, h_inverse)
 
-    writer = Writer("text.svg", image="bg.jpg", dimensions=(5952, 3348))
+    print("start saving. elapsed time: {0:.2f} seconds".format(time.time()-time_start))
+
+    writer = WriterSimple("text.svg", image="bg.jpg", dimensions=(5952, 3348))
     writer.add_hexagons(warped_hexagons, hexagon_fills)
     writer.add_circles(example_data, radius=1)
+    writer.add_circles(src, radius=10, fill=[0, 254, 0])
     writer.save()
+
+    print("done. elapsed time: {0:.2f} seconds".format(time.time()-time_start))
 
 
