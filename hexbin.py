@@ -61,11 +61,14 @@ class Hexbin():
                     pi = pi2 + (1 if int(pj) & 1 else -1) / 2.0
                     pj = pj2
 
+            pi = int(pi)
+            pj = int(pj)
+
             bin_id = "{}-{}".format(pi, pj)
             try:
                 self.bins[bin_id][4] += 1
             except KeyError as e:
-                binx = (pi + (int(pj) & 1) / 2.0) * self.dx
+                binx = (pi + (pj & 1) / 2.0) * self.dx
                 biny = pj * self.dy
                 self.bins[bin_id] = [binx, biny, pi, pj, 1]
 
@@ -235,10 +238,10 @@ class Writer():
 
     def add_hexagons(self, hexagons, fills):
         for i in range(0, len(hexagons)):
-            # dwg.add(dwg.path(self._get_hexagon_path(self.radius), transform="translate({},{})".format(item[0], item[1]), fill="rgb(254,0,0)"))
+            # dwg.add(dwg.path(self._get_hexagon_path(self.radius), transform="translate({},{})".format(item[0], item[1]), fill="rgb(255,0,0)"))
             self.dwg.add(self.dwg.path(
                 Hexbin.create_svg_path(hexagons[i], absolute=True), 
-                fill=svgwrite.rgb(fills[i][0]*254, fills[i][1]*254, fills[i][2]*254))
+                fill=svgwrite.rgb(fills[i][0]*255, fills[i][1]*255, fills[i][2]*255))
             ) 
 
             # , 
@@ -248,7 +251,7 @@ class Writer():
 
              # fill=svgwrite.rgb(*self._interpolate_color(item[4], self._get_minmax(), ((10, 10, 10), (200, 200, 200)))), 
 
-    def add_circles(self, points, radius=3, fill=svgwrite.rgb(254, 0, 0)):
+    def add_circles(self, points, radius=3, fill=svgwrite.rgb(255, 0, 0)):
         for item in points:
             self.dwg.add(self.dwg.circle(center=item, r=radius, fill=fill))
 
@@ -270,19 +273,23 @@ class WriterSimple():
 
         self.hexagons = []
         self.circles = []
+        self.rectangles = []
 
     def add_hexagons(self, hexagons, fills):
         for i in range(0, len(hexagons)):
             self.hexagons.append([
                 Hexbin.create_svg_path(hexagons[i], absolute=True), 
-                [fills[i][0]*254, fills[i][1]*254, fills[i][2]*254]
+                [fills[i][0]*255, fills[i][1]*255, fills[i][2]*255]
             ]) 
 
-    def add_circles(self, circles, radius=3, fill=[254, 0, 0]):
+    def add_circles(self, circles, radius=3, fill=[255, 0, 0]):
         for item in circles:
             self.circles.append([item, radius, fill])
-        #     self.dwg.add(self.dwg.circle(center=item, r=radius, fill=fill))
-        pass
+
+
+    def add_rectangles(self, coords, strokewidth=1, stroke=[255, 0, 0], opacity=1.0):
+        for item in coords:
+            self.rectangles.append([item, strokewidth, stroke, opacity])
 
 
     def save(self):
@@ -312,6 +319,9 @@ class WriterSimple():
  
             for c in self.circles:
                 out.write("<circle cx=\"{}\" cy=\"{}\" fill=\"rgb({},{},{})\" r=\"{}\" />".format(c[0][0], c[0][1], c[2][0], c[2][1], c[2][2], c[1]))
+
+            for r in self.rectangles:
+                out.write("<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" stroke-width=\"{}\" stroke=\"rgb({},{},{})\" fill-opacity=\"0.0\" stroke-opacity=\"{}\" />".format(*r[0], r[1], *r[2], r[3]))
 
             out.write("</svg>")
 
@@ -353,81 +363,56 @@ def transformHexagons(hexagons, h):
 
 if __name__ == "__main__":
 
-    example_data = [
-        [1, 1],
-        [5, 1],
-        [1, 10],
-        [5, 10],
-        [50, 2],
-        [3, 70],
-        [80, 75]
-    ]
-
-    # example_data = [
-    #     # [1, 2],
-    #     [1, 12]
-    # ]
-
-    # import numpy as np 
-    # mu, sigma = 0, 0.3  
-    # n = 1000
-    # x = np.multiply(np.random.normal(mu, sigma, n), 400)
-    # y = np.multiply(np.random.normal(mu, sigma, n), 300)
-    # x = np.add(x, 400)
-    # y = np.add(y, 300)
-    # example_data = [None] * n
-    # for i in range(0, n):
-    #     example_data[i] = [float(x[i]), float(y[i])]
-
-    import csv
+    # TODO: load data.json or yaml?
 
     time_start = time.time()
 
-    example_data = []
-    with open("boxes_bahnhof2.txt") as csv_file:
+    detections = []
+    raw_bounding_boxes = []
+    latlon_coordinates_from_csv = []
+    with open(INPUT_FILE) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter='|')
         data = [r for r in csv_reader]
         data.pop(0) # remove header
         
         for line in data:
+
+            if line[2] is not "0":
+                continue
+
+            lat = float(line[4])
+            lon = float(line[5])
+
             minx = float(line[6])
             miny = float(line[7])
             maxx = float(line[8])
             maxy = float(line[9])
 
-            example_data.append([minx + (maxx-minx)/2, maxy])
+            latlon_coordinates_from_csv.append([lat, lon])
+            detections.append([minx + (maxx-minx)/2, maxy])
+            raw_bounding_boxes.append([minx, miny, maxx-minx, maxy-miny])
 
     # example_data = example_data[0:10000]
 
-    src = [
-        [1124, 1416],
-        [1773, 2470],
-        [3785, 1267],
-        [3416, 928],
-        [2856, 1303],
-        [2452, 916],
-        [3870, 2476]
-    ]
-    dst = [
-        [50.971296, 11.037630],
-        [50.971173, 11.037914],
-        [50.971456, 11.037915],
-        [50.971705, 11.037711],
-        [50.971402, 11.037796],
-        [50.971636, 11.037486],
-        [50.971214, 11.038025]
-    ]
+    print("loaded {} boxes".format(len(detections)))
 
     h, _ = calculateHomographyMatrix(src, dst)
-    latlon_coordinates = transformPoints(example_data, h)
+    latlon_coordinates = transformPoints(detections, h)
 
-    hexbin = Hexbin(0.5)
-    hexbin.add_data(latlon_coordinates)
+    hexbin = Hexbin(0.4)
+    hexbin.add_data(latlon_coordinates) #latlon_coordinates_from_csv)
     latlon_hexagons = hexbin.hexagon_points()
     
     hexagon_fills = [x[1] for x in hexbin.hexagons().items()]
-    scale = Colorscale([0, 40])
-    # domain = hexbin._get_minmax()
+
+    hexagon_binsizes = [x[4] for x in hexagon_fills]
+    hexagon_binsizes = sorted(hexagon_binsizes)
+    maxval = hexagon_binsizes[int(len(hexagon_binsizes)*0.99)]
+    print(maxval)
+    scale = Colorscale([0, maxval])
+
+    # print(*hexagon_fills, sep="\n")
+
     for i in range(len(hexagon_fills)):
         hexagon_fills[i] = scale.get_color(hexagon_fills[i][4])
         # print(hexagon_fills[i])
@@ -440,12 +425,17 @@ if __name__ == "__main__":
 
     print("start saving. elapsed time: {0:.2f} seconds".format(time.time()-time_start))
 
-    writer = WriterSimple("text.svg", image="bg.jpg", dimensions=(5952, 3348))
+    writer = WriterSimple("output.svg", dimensions=DIMENSIONS, image=BACKGROUND_FILE)
     writer.add_hexagons(warped_hexagons, hexagon_fills)
-    writer.add_circles(example_data, radius=1)
-    writer.add_circles(src, radius=10, fill=[0, 254, 0])
+    # writer.add_circles(detections, radius=1)
+    # writer.add_circles(src, radius=40, fill=[0, 0, 0])
+    # writer.add_circles(src, radius=20, fill=[255, 255, 255])
+    # writer.add_rectangles(raw_bounding_boxes, strokewidth=1, stroke=[253, 231, 37], opacity=0.2)
     writer.save()
 
     print("done. elapsed time: {0:.2f} seconds".format(time.time()-time_start))
 
 
+    #450457  69   4  87
+    #1f968b  31 150 139
+    #fde725 253 231  37
