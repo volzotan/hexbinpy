@@ -1,4 +1,4 @@
-from hexbin import Hexbin, Colorscale
+from hexbin import Hexbin, Colorscale, Alphascale
 
 import time
 import csv
@@ -37,10 +37,14 @@ class Writer():
     def add_hexagons(self, hexagons, fills):
         for i in range(0, len(hexagons)):
             # dwg.add(dwg.path(self._get_hexagon_path(self.radius), transform="translate({},{})".format(item[0], item[1]), fill="rgb(255,0,0)"))
-            self.dwg.add(self.dwg.path(
-                Hexbin.create_svg_path(hexagons[i], absolute=True), 
-                fill=svgwrite.rgb(fills[i][0]*255, fills[i][1]*255, fills[i][2]*255))
-            ) 
+            
+            fill_value = None
+            if len(fills[i] == 4): # contains alpha
+                fill_value = svgwrite.rgba(fills[i][0]*255, fills[i][1]*255, fills[i][2]*255, fills[i][3])
+            else:
+                fill_value = svgwrite.rgb(fills[i][0]*255, fills[i][1]*255, fills[i][2]*255)
+
+            self.dwg.add(self.dwg.path(Hexbin.create_svg_path(hexagons[i], absolute=True), fill=fill_value)) 
 
             # , 
             #     fill=svgwrite.rgb(0, 0, 0),
@@ -77,7 +81,7 @@ class WriterSimple():
         for i in range(0, len(hexagons)):
             self.hexagons.append([
                 Hexbin.create_svg_path(hexagons[i], absolute=True), 
-                [fills[i][0]*255, fills[i][1]*255, fills[i][2]*255]
+                [fills[i][0]*255, fills[i][1]*255, fills[i][2]*255, fills[i][3]]
             ]) 
 
     def add_circles(self, circles, radius=3, fill=[255, 0, 0]):
@@ -113,7 +117,8 @@ class WriterSimple():
                         out.write(" ")
                         out.write(str(cmd[2]))
                         out.write(" ")
-                out.write("\" fill=\"rgb({},{},{})\" />".format(int(h[1][0]), int(h[1][1]), int(h[1][2])))
+                # out.write("\" fill=\"rgba({},{},{},{})\" />".format(int(h[1][0]), int(h[1][1]), int(h[1][2]), int(h[1][3])))
+                out.write("\" fill=\"rgb({},{},{})\" fill-opacity=\"{}\" />".format(int(h[1][0]), int(h[1][1]), int(h[1][2]), h[1][3]))
  
             for c in self.circles:
                 out.write("<circle cx=\"{}\" cy=\"{}\" fill=\"rgb({},{},{})\" r=\"{}\" />".format(c[0][0], c[0][1], c[2][0], c[2][1], c[2][2], c[1]))
@@ -202,18 +207,34 @@ if __name__ == "__main__":
     hexbin.add_data(latlon_coordinates) #latlon_coordinates_from_csv)
     latlon_hexagons = hexbin.hexagon_points()
     
+    hexbin.calculate_neighbour_values()
     hexagon_fills = [x[1] for x in hexbin.hexagons().items()]
 
+    # hexagon values
     hexagon_binsizes = [x[4] for x in hexagon_fills]
     hexagon_binsizes = sorted(hexagon_binsizes)
     maxval = hexagon_binsizes[int(len(hexagon_binsizes)*0.99)]
     print("maximum hexagon value: {}".format(maxval))
     scale = Colorscale([0, maxval])
 
+    # hexagon neighbour values
+    hexagon_binsizes = [x[5] for x in hexagon_fills]
+    hexagon_binsizes = sorted(hexagon_binsizes)
+    maxval = hexagon_binsizes[int(len(hexagon_binsizes)*0.99)]
+    print("maximum hexagon neighbour value: {}".format(maxval))
+    ascale = Alphascale([0, maxval/5.0])
+
     # print(*hexagon_fills, sep="\n")
 
-    for i in range(len(hexagon_fills)):
-        hexagon_fills[i] = scale.get_color(hexagon_fills[i][4])
+    for i in range(len(hexagon_fills)):    
+        # hexagon_fills[i] = (*scale.get_color(hexagon_fills[i][4]), ascale.get_alpha(hexagon_fills[i][4])) # merge color tuple and alpha value
+        hexagon_fills[i] = (*scale.get_color(hexagon_fills[i][4]), ascale.get_alpha(hexagon_fills[i][5])) # merge color tuple and alpha value
+        
+        # val = 1.0
+        # if hexagon_fills[i][5] < 3:
+        #     val = 0.5 
+        # hexagon_fills[i] = (*scale.get_color(hexagon_fills[i][4]), val) 
+
         # print(hexagon_fills[i])
         # exit()
 

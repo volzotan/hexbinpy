@@ -10,6 +10,9 @@ class Hexbin():
 
     radius = 0.00001
 
+    # Hexbin
+    # [center_x, center_y, pi, pj, fill_value, sum_of_neighbour_values]
+
     def __init__(self, diameter_in_metres):
 
         self.raw = []
@@ -69,6 +72,39 @@ class Hexbin():
                 self.bins[bin_id] = [binx, biny, pi, pj, 1]
 
             self.raw.append([self.x(data[i]), self.y(data[i])])
+
+
+    def _val_for_bin(self, pi, pj):
+        try:
+            return self.bins["{0:d}-{1:d}".format(pi, pj)][4]
+        except KeyError as e:
+            return 0
+
+
+    def calculate_neighbour_values(self):
+        for k in self.bins:
+            b = self.bins[k]
+
+            pi = b[2]
+            pj = b[3]
+
+            nv = 0
+
+            # nv = nv + self._val_for_bin(pi  , pj-1)
+            # nv = nv + self._val_for_bin(pi+1, pj-1)
+            # nv = nv + self._val_for_bin(pi+1, pj  )
+            # nv = nv + self._val_for_bin(pi+1, pj+1)
+            # nv = nv + self._val_for_bin(pi  , pj+1)
+            # nv = nv + self._val_for_bin(pi-1, pj  )
+
+            nv = nv + self._val_for_bin(pi-1, pj-1)
+            nv = nv + self._val_for_bin(pi  , pj-1)
+            nv = nv + self._val_for_bin(pi+1, pj  )
+            nv = nv + self._val_for_bin(pi  , pj+1)
+            nv = nv + self._val_for_bin(pi-1, pj+1)
+            nv = nv + self._val_for_bin(pi-1, pj  )
+
+            b.append(nv)
 
 
     def _draw_hexagon(self, r):
@@ -208,6 +244,25 @@ class Colorscale():
             return self.colormap(1.0)[:-1]
 
         return self.colormap(a)[:-1]
+
+
+class Alphascale():
+
+    def __init__(self, d):
+        self.d = d
+
+    def get_alpha(self, value):
+        a = value - self.d[0]
+
+        if (a <= 0):
+            return 0.0
+
+        a = a / (self.d[1] - self.d[0])
+
+        if (a >= 1):
+            return 1.0
+
+        return a
 
 
 if __name__ == "__main__":
