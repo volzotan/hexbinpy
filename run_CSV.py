@@ -164,6 +164,22 @@ def transformHexagons(hexagons, h):
     return warped_hexagons
 
 
+def id_to_classname(index):
+
+    classnames =  [
+        "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", 
+        "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", 
+        "snowboard", "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", 
+        "spoon", "bowl", "banana", "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch", "potted plant", "bed", 
+        "dining table", "toilet", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", 
+        "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
+    ]
+
+    return classnames[index]
+
+
+FILTER_FOR_CLASSES = ["person"]
+
 if __name__ == "__main__":
 
     # with open("data.yaml", 'r') as stream:
@@ -174,15 +190,20 @@ if __name__ == "__main__":
     detections = []
     raw_bounding_boxes = []
     latlon_coordinates_from_csv = []
+    skip = 0
     with open(config.INPUT_FILE) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter='|')
         data = [r for r in csv_reader]
         data.pop(0) # remove header
         
+        # timestamp|device|class|confidence|lat|lon|minx|miny|maxx|maxy
+
         for line in data:
 
-            if line[2] is not "0":
-                continue
+            if FILTER_FOR_CLASSES is not None and len(FILTER_FOR_CLASSES) >= 1:
+                if not id_to_classname(int(line[2])) in FILTER_FOR_CLASSES:
+                    skip += 1
+                    continue
 
             lat = float(line[4])
             lon = float(line[5])
@@ -198,7 +219,7 @@ if __name__ == "__main__":
 
     # example_data = example_data[0:10000]
 
-    print("loaded {} boxes".format(len(detections)))
+    print("loaded {} boxes, filtered {}".format(len(detections), skip))
 
     h, _ = calculateHomographyMatrix(config.src, config.dst)
     latlon_coordinates = transformPoints(detections, h)
@@ -222,7 +243,7 @@ if __name__ == "__main__":
     hexagon_binsizes = sorted(hexagon_binsizes)
     maxval = hexagon_binsizes[int(len(hexagon_binsizes)*0.99)]
     print("maximum hexagon neighbour value: {}".format(maxval))
-    ascale = Alphascale([0, maxval/5.0])
+    ascale = Alphascale([0, maxval/8.0])
 
     # print(*hexagon_fills, sep="\n")
 
