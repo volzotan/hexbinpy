@@ -13,12 +13,14 @@ class Hexbin():
     # Hexbin
     # [center_x, center_y, pi, pj, fill_value, sum_of_neighbour_values]
 
-    def __init__(self, diameter_in_metres):
+    def __init__(self, diameter, assume_diameter_in_metres=True):
 
         self.raw = []
         self.bins = {}
 
-        self.radius = self._m_to_latlon(diameter_in_metres / 2.0)
+        self.radius = diameter / 2.0
+        if assume_diameter_in_metres:
+            self.radius = self._m_to_latlon(self.radius)
 
         self.w = sqrt(3) * self.radius
         self.h = 2 * self.radius
@@ -267,4 +269,5 @@ class Alphascale():
 
 if __name__ == "__main__":
     print("INVOKE FROM SCRIPT, NOT DIRECTLY")
+    exit(-1)
 
