@@ -266,8 +266,3 @@ class Alphascale():
 
         return a
 
-
-if __name__ == "__main__":
-    print("INVOKE FROM SCRIPT, NOT DIRECTLY")
-    exit(-1)
-

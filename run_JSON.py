@@ -9,13 +9,19 @@ import os
 import numpy as np
 import cv2
 
+USE_HOMOGRAPHY      = False
+
 # INPUT_DIR           = "/Users/volzotan/Documents/DESPATDATASETS/19-11-24_herderplatz_aligned_annotation"
 # DIMENSIONS          = (4000, 3000)
 # BACKGROUND_FILE     = "herderplatz2.jpg"
 # HEXAGON_SIZE        = 20 #30 # 40 #px
 
-INPUT_DIR           = "/Users/volzotan/Documents/DESPATDATASETS/19-12-21_augustbaudertplatz_annotation/blobdetector_history_500"
-BACKGROUND_FILE     = "augustbaudertplatz2.jpg"
+# INPUT_DIR           = "/Users/volzotan/Documents/DESPATDATASETS/19-12-21_augustbaudertplatz_annotation/blobdetector_history_500"
+# BACKGROUND_FILE     = "augustbaudertplatz2.jpg"
+# HEXAGON_SIZE        = 0.5
+
+INPUT_DIR           = "/Users/volzotan/Documents/DESPATDATASETS/20-01-02_goetheplatz_annotation/blobdetector_history_750"
+BACKGROUND_FILE     = "goetheplatz.jpg"
 HEXAGON_SIZE        = 20
 
 # INPUT_DIR           = "/Users/volzotan/Documents/DESPATDATASETS/19-12-20_frauenplan_aligned_annotation"
@@ -45,7 +51,6 @@ MAPPING_FORWARD_GEO = [
     [50.991077, 11.326979],
     [50.990958, 11.326268]
 ]
-
 
 MAPPING_BACKWARD_GEO = [
     [50.991122, 11.325214],
@@ -254,20 +259,24 @@ if __name__ == "__main__":
 
     # NON HOMOGRAPHY
 
-    # hexbin = Hexbin(HEXAGON_SIZE, assume_diameter_in_metres=False)
-    # hexbin.add_data(detections)
-    # hexagons = hexbin.hexagon_points()
+    if not USE_HOMOGRAPHY:
+
+        hexbin = Hexbin(HEXAGON_SIZE, assume_diameter_in_metres=False)
+        hexbin.add_data(detections)
+        hexagons = hexbin.hexagon_points()
+
+    else:
 
     # HOMOGRAPHY
 
-    h1, _ = calculateHomographyMatrix(MAPPING_FORWARD_PIXEL, MAPPING_FORWARD_GEO)
-    h2, _ = calculateHomographyMatrix(MAPPING_BACKWARD_GEO, MAPPING_BACKWARD_PIXEL)
+        h1, _ = calculateHomographyMatrix(MAPPING_FORWARD_PIXEL, MAPPING_FORWARD_GEO)
+        h2, _ = calculateHomographyMatrix(MAPPING_BACKWARD_GEO, MAPPING_BACKWARD_PIXEL)
 
-    latlon_coordinates = transformPoints(detections, h1)
+        latlon_coordinates = transformPoints(detections, h1)
 
-    hexbin = Hexbin(0.5)
-    hexbin.add_data(latlon_coordinates) 
-    latlon_hexagons = hexbin.hexagon_points()
+        hexbin = Hexbin(HEXAGON_SIZE)
+        hexbin.add_data(latlon_coordinates) 
+        hexagons = hexbin.hexagon_points()
 
     hexbin.calculate_neighbour_values()
     hexagon_fills = [x[1] for x in hexbin.hexagons().items()]
@@ -304,15 +313,11 @@ if __name__ == "__main__":
         # hexagon_fills[i] = (*scale.get_color(hexagon_fills[i][4]), 1.0)                                   # no alpha channel, only color
         # hexagon_fills[i] = (0, 0, 1, scale.get_alpha(hexagon_fills[i][4]))                                # no color, only alpha channel
         
-    # NON HOMOGRAPHY
-
-    # warped_hexagons = hexagons
-
-    # HEXAGON HOMOGRAPHY CALCULATIONS
-
-    # _, h_inverse = cv2.invert(h)
-    # _, h_inverse = cv2.invert(h)
-    warped_hexagons = transformHexagons(latlon_hexagons, h2)
+    if not USE_HOMOGRAPHY:
+        warped_hexagons = hexagons
+    else:
+        # _, h_inverse = cv2.invert(h)
+        warped_hexagons = transformHexagons(hexagons, h2)
 
     print("start saving. elapsed time: {0:.2f} seconds".format(time.time()-time_start))
 
